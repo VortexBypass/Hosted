@@ -25,7 +25,11 @@ def root_redirect():
 def bypass_proxy():
     """
     GET /bypass?url=<TARGET>
-    Returns raw JSON/plain responses with the exact formats requested.
+    - Requires 'url' query param to be present (may be empty string).
+    - Calls upstream with hard-coded apikey server-side.
+    - Success -> {"status":"success","result":..., "time": ... (if present)}
+    - Error   -> {"Status":"error","message":"...","time": ... (if present)}
+    - Non-JSON upstream -> forwarded as text/plain
     """
     if 'url' not in request.args:
         return abort(400, "Missing 'url' query parameter. Use /bypass?url=<TARGET>")
@@ -43,36 +47,35 @@ def bypass_proxy():
     try:
         data = resp.json()
     except ValueError:
-        # Non-JSON: forward raw text (no HTML, no boxes)
         return Response(resp.text, mimetype="text/plain", status=resp.status_code)
 
-    # If upstream indicates an error, extract message and return our error format
+    # If upstream indicates an error, extract message and include time if present
     if isinstance(data, dict) and "error" in data:
         err = data.get("error")
-        # If error is a dict with message, prefer that
         message = None
+        # If "error" is an object with "message", prefer that
         if isinstance(err, dict):
-            message = err.get("message")
-        # fallback to top-level 'message'
+            message = err.get("message") or err.get("msg")
+        # fallback to top-level "message"
         if not message:
             message = data.get("message")
-        # fallback to stringifying err
         if not message:
             message = str(err)
         error_obj = {"Status": "error", "message": str(message)}
-        return Response(json.dumps(error_obj, indent=2), mimetype="application/json", status=resp.status_code)
+        # include time if upstream provided it (either top-level or inside error object)
+        if isinstance(err, dict) and "time" in err:
+            error_obj["time"] = err.get("time")
+        elif "time" in data:
+            error_obj["time"] = data.get("time")
+        return Response(json.dumps(error_obj, indent=2, ensure_ascii=False), mimetype="application/json", status=resp.status_code)
 
-    # Not an error: keep ONLY 'result' and 'time'
+    # Not an error: keep ONLY 'result' (and 'time' if present)
     filtered = {}
-    if isinstance(data, dict):
-        if "result" in data:
-            filtered["status"] = "success"           # user-requested lowercase 'status'
-            filtered["result"] = data["result"]
-            if "time" in data:
-                filtered["time"] = data["time"]
-        else:
-            # no 'result' present -> per instructions return empty JSON object
-            filtered = {}
+    if isinstance(data, dict) and "result" in data:
+        filtered["status"] = "success"
+        filtered["result"] = data["result"]
+        if "time" in data:
+            filtered["time"] = data["time"]
 
-    # Return filtered JSON
+    # If there's no 'result' and no 'error' -> return empty JSON object per your instructions
     return Response(json.dumps(filtered, indent=2, ensure_ascii=False), mimetype="application/json", status=resp.status_code)
