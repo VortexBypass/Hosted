@@ -9,7 +9,35 @@ API_BASE = "http://ace-bypass.com/api/bypass"
 API_KEY = "FREE_S7MdXC0momgajOEx1_UKW7FQUvbmzvalu0gTwr-V6cI"
 SECOND_API_BASE = "https://ka.idarko.xyz/bypass"
 SECOND_API_KEY = "afkbestguy"
-SECOND_API_ALLOWED = ["https://lockr.so/", "https://lockr.so"]
+
+SECOND_API_ALLOWED = [
+    "https://socialwolvez.com/",
+    "https://adfoc.us/",
+    "https://sub2get.com/",
+    "https://sub4unlock.com/",
+    "https://sub2unlock.net/",
+    "https://sub2unlock.com/",
+    "https://mboost.me/",
+    "https://deltaios-executor.com/ads.html?URL=",
+    "https://krnl-ios.com/ads.html?URL=",
+    "https://auth.platoboost.app/",
+    "https://auth.platoboost.net/",
+    "https://loot-link.com",
+    "https://lootlink.org",
+    "https://lootlinks.co",
+    "https://lootdest.info",
+    "https://lootdest.org",
+    "https://lootdest.com",
+    "https://links-loot.com",
+    "https://loot-links.com",
+    "https://best-links.org",
+    "https://lootlinks.com",
+    "https://loot-labs.com",
+    "https://lootlabs.com",
+    "https://pandadevelopment.net/",
+    "https://krnl.cat/",
+    "https://lockr.so/"
+]
 
 @app.route("/", methods=["GET"])
 def root_redirect():
@@ -45,12 +73,16 @@ def bypass_proxy():
         elapsed = time.time() - start
         if isinstance(data, dict):
             api_status = data.get("status", "").lower()
-            api_data = data.get("data", {}) if isinstance(data.get("data", {}), dict) else {}
+            api_data = data.get("data", {})
             if api_status == "success":
-                result_obj = {"status": data.get("status", "success"), "result": api_data.get("result", ""), "time": f"{elapsed:.2f}"}
+                result_obj = {
+                    "status": api_status,
+                    "result": api_data.get("result", ""),
+                    "time": f"{elapsed:.2f}"
+                }
                 return Response(json.dumps(result_obj, indent=2, ensure_ascii=False), mimetype="application/json", status=resp.status_code)
             else:
-                message = api_data.get("message") or data.get("message") or str(api_data) or "Unknown error"
+                message = api_data.get("message") or data.get("message") or "Unknown error"
                 error_obj = {"Status": "error", "message": str(message), "time": f"{elapsed:.2f}"}
                 return Response(json.dumps(error_obj, indent=2, ensure_ascii=False), mimetype="application/json", status=resp.status_code)
     else:
@@ -88,6 +120,6 @@ def bypass_proxy():
 def supported_page():
     supported_list = [
         "Codex","Trigon","rekonise","linkvertise","paster-so","cuttlinks","boost-ink-and-bst-gg","keyguardian","bstshrt","nicuse-getkey","bit.do","bit.ly","blox-script","cl.gy","cuty-cuttlinks","getpolsec","goo.gl","is.gd","ldnesfspublic","link-hub.net","link-unlock-complete","link4m.com","link4sub","linkunlocker","lockr","mboost","mediafire","overdrivehub","paste-drop","pastebin","pastes_io","quartyz","rebrand.ly","rinku-pro","rkns.link","shorteners-and-direct","shorter.me","socialwolvez","sub2get","sub2unlock","sub4unlock.com","subfinal","t.co","t.ly","tiny.cc","tinylink.onl","tinyurl.com","tpi.li key-system","v.gd","work-ink","ytsubme",
-        "https://lockr.so/"
+        "https://socialwolvez.com/","https://adfoc.us/","https://sub2get.com/","https://sub4unlock.com/","https://sub2unlock.net/","https://sub2unlock.com/","https://mboost.me/","https://deltaios-executor.com/ads.html?URL=","https://krnl-ios.com/ads.html?URL=","https://auth.platoboost.app/","https://auth.platoboost.net/","https://loot-link.com","https://lootlink.org","https://lootlinks.co","https://lootdest.info","https://lootdest.org","https://lootdest.com","https://links-loot.com","https://loot-links.com","https://best-links.org","https://lootlinks.com","https://loot-labs.com","https://lootlabs.com","https://pandadevelopment.net/","https://krnl.cat/","https://lockr.so/"
     ]
     return render_template("supported.html", supported_json=json.dumps(supported_list, indent=2))
