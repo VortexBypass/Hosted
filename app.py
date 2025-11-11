@@ -1,3 +1,4 @@
+# app.py
 from flask import Flask, request, render_template, abort
 import requests
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
@@ -28,27 +29,30 @@ def remove_apikey_from_url(url: str) -> str:
 
 @app.route("/", methods=["GET"])
 def root_redirect():
-    # Redirect to /bypass?url= so visiting root auto-adds it
+    # Redirect root to /bypass?url= so visiting root auto-adds it
     return ('', 302, {'Location': '/bypass?url='})
 
 @app.route("/bypass", methods=["GET"])
 def bypass_proxy():
     """
-    Renders an HTML page (black background) showing the raw upstream response.
-    The API key is only used server-side and is never exposed to clients.
+    Endpoint only accepts GET requests.
+    Usage: GET /bypass?url=<TARGET>
+    - If the 'url' parameter is missing entirely -> returns 400.
+    - If the 'url' parameter exists (including an empty value) -> it's forwarded to upstream.
     """
-    # Require the presence of the 'url' parameter (it may be empty "")
+    # Ensure we only accept GET: Flask enforces this because methods=["GET"] above.
+    # Check presence of 'url' param (may be empty string "")
     if 'url' not in request.args:
         return abort(400, "Missing 'url' query parameter. Use /bypass?url=<TARGET>")
 
     target = request.args.get("url", "")
 
-    # Call upstream with hard-coded API key (server-side only)
+    # Build request to upstream API (apikey is sent server-side only)
     params = {"url": target, "apikey": API_KEY}
     try:
         resp = requests.get(API_BASE, params=params, timeout=15)
     except requests.RequestException:
-        # Render error page without exposing key or upstream URL
+        # Generic error message — do not leak API_KEY or full upstream URL
         return render_template("bypass.html", raw="Error contacting upstream API.", status="502", ctype="text/plain")
 
     # decode content safely to text for display (replace invalid bytes)
@@ -57,12 +61,12 @@ def bypass_proxy():
     except Exception:
         raw_text = resp.content.decode("utf-8", errors="replace")
 
-    # If upstream returned a Location header, make sure any apikey is removed from it
+    # Remove any apikey from Location header if present (but we don't display it)
     location = resp.headers.get("Location")
     if location:
         location = remove_apikey_from_url(location)
 
-    # Render HTML template with raw response (escaped in template)
+    # Render template (templates/bypass.html) — the template shows only {{ raw | e }}
     return render_template(
         "bypass.html",
         raw=raw_text,
