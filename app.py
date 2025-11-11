@@ -1,6 +1,7 @@
-from flask import Flask, request, Response, abort
+from flask import Flask, request, Response, abort, render_template
 import requests
 import json
+import time
 
 app = Flask(__name__)
 
@@ -17,14 +18,17 @@ def bypass_proxy():
         return abort(400, "Missing 'url' query parameter. Use /bypass?url=<TARGET>")
     target = request.args.get("url", "")
     params = {"url": target, "apikey": API_KEY}
+    start = time.time()
     try:
         resp = requests.get(API_BASE, params=params, timeout=15)
     except requests.RequestException:
-        err_obj = {"Status": "error", "message": "Failed to contact upstream API."}
+        elapsed = time.time() - start
+        err_obj = {"Status": "error", "message": "Failed to contact upstream API.", "time": f"{elapsed:.2f}"}
         return Response(json.dumps(err_obj, indent=2, ensure_ascii=False), mimetype="application/json", status=502)
     try:
         data = resp.json()
     except ValueError:
+        elapsed = time.time() - start
         return Response(resp.text, mimetype="text/plain", status=resp.status_code)
     if isinstance(data, dict) and "error" in data:
         err = data.get("error")
@@ -35,16 +39,17 @@ def bypass_proxy():
             message = data.get("message")
         if not message:
             message = str(err)
-        error_obj = {"Status": "error", "message": str(message)}
-        if isinstance(err, dict) and "time" in err:
-            error_obj["time"] = err.get("time")
-        elif "time" in data:
-            error_obj["time"] = data.get("time")
+        elapsed = time.time() - start
+        error_obj = {"Status": "error", "message": str(message), "time": f"{elapsed:.2f}"}
         return Response(json.dumps(error_obj, indent=2, ensure_ascii=False), mimetype="application/json", status=resp.status_code)
     filtered = {}
     if isinstance(data, dict) and "result" in data:
+        elapsed = time.time() - start
         filtered["status"] = "success"
         filtered["result"] = data["result"]
-        if "time" in data:
-            filtered["time"] = data["time"]
+        filtered["time"] = f"{elapsed:.2f}"
     return Response(json.dumps(filtered, indent=2, ensure_ascii=False), mimetype="application/json", status=resp.status_code)
+
+@app.route("/supported", methods=["GET"])
+def supported_page():
+    return render_template("supported.html")
