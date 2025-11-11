@@ -1,19 +1,16 @@
-from flask import Flask, request, Response, abort, redirect
+from flask import Flask, request, render_template, abort
 import requests
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 import logging
-import os
 
 # === HARD-CODED KEY (kept only on the server) ===
 API_BASE = "http://ace-bypass.com/api/bypass"
 API_KEY = "FREE_S7MdXC0momgajOEx1_UKW7FQUvbmzvalu0gTwr-V6cI"
 # =================================================
 
-# Export the Flask app as a top-level variable (Vercel/WGSI expects this).
 app = Flask(__name__)
 
-# Silence werkzeug request logging so querystrings won't be printed to stdout in logs.
-# (Vercel still collects logs; this reduces accidental prints of full URLs.)
+# Silence werkzeug prints in logs when not debugging
 if not app.debug:
     logging.getLogger("werkzeug").disabled = True
 
@@ -29,63 +26,49 @@ def remove_apikey_from_url(url: str) -> str:
     sanitized = urlunparse((parsed.scheme, parsed.netloc, parsed.path, parsed.params, new_query, parsed.fragment))
     return sanitized
 
-def filtered_response_headers(original_headers):
-    """
-    Return a dict of headers to forward to client but remove headers that might reveal credentials.
-    Also sanitize Location header.
-    """
-    out = {}
-    forbidden_substrings = ('key', 'auth', 'token', 'cookie')
-    for k, v in original_headers.items():
-        kl = k.lower()
-        if kl.startswith('set-cookie') or any(s in kl for s in forbidden_substrings):
-            continue
-        if kl == 'location':
-            v = remove_apikey_from_url(v)
-        out[k] = v
-    return out
-
 @app.route("/", methods=["GET"])
 def root_redirect():
-    """
-    Redirect root to /bypass?url= so visiting the site auto-adds that path/query.
-    Example: https://example.com/  ->  https://example.com/bypass?url=
-    """
-    return redirect("/bypass?url=", code=302)
+    # Redirect to /bypass?url= so visiting root auto-adds it
+    return ('', 302, {'Location': '/bypass?url='})
 
 @app.route("/bypass", methods=["GET"])
 def bypass_proxy():
     """
-    Endpoint: /bypass?url=<TARGET>
-    Calls upstream API with hard-coded apikey and returns upstream raw body.
-    The API key is never included in any response headers or body returned to clients.
+    Renders an HTML page (black background) showing the raw upstream response.
+    The API key is only used server-side and is never exposed to clients.
     """
-    # Accept empty value (user may want /bypass?url=) — only treat missing as error
+    # Require the presence of the 'url' parameter (it may be empty "")
     if 'url' not in request.args:
         return abort(400, "Missing 'url' query parameter. Use /bypass?url=<TARGET>")
 
     target = request.args.get("url", "")
 
-    # Build request to upstream API (apikey is sent server-side only)
+    # Call upstream with hard-coded API key (server-side only)
     params = {"url": target, "apikey": API_KEY}
     try:
         resp = requests.get(API_BASE, params=params, timeout=15)
     except requests.RequestException:
-        # Generic error message — do not leak API_KEY or full upstream URL
-        return Response("Error contacting upstream API.", status=502, mimetype="text/plain")
+        # Render error page without exposing key or upstream URL
+        return render_template("bypass.html", raw="Error contacting upstream API.", status="502", ctype="text/plain")
 
-    # Filter headers so we don't forward anything that could reveal the API key
-    safe_headers = filtered_response_headers(resp.headers)
+    # decode content safely to text for display (replace invalid bytes)
+    try:
+        raw_text = resp.content.decode("utf-8")
+    except Exception:
+        raw_text = resp.content.decode("utf-8", errors="replace")
 
-    # Return raw upstream content with upstream status code
-    response = Response(resp.content, status=resp.status_code)
-    if 'Content-Type' in safe_headers:
-        response.headers['Content-Type'] = safe_headers.pop('Content-Type')
-    for hk, hv in safe_headers.items():
-        if hk.lower() == 'content-type':
-            continue
-        response.headers[hk] = hv
+    # If upstream returned a Location header, make sure any apikey is removed from it
+    location = resp.headers.get("Location")
+    if location:
+        location = remove_apikey_from_url(location)
 
-    return response
+    # Render HTML template with raw response (escaped in template)
+    return render_template(
+        "bypass.html",
+        raw=raw_text,
+        status=resp.status_code,
+        ctype=resp.headers.get("Content-Type", "text/plain"),
+        upstream_location=location
+    )
 
-# Do NOT call app.run() — Vercel will handle the WSGI entrypoint.
+# No app.run() — Vercel will use the `app` WSGI application.
