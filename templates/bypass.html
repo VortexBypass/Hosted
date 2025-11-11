@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Bypass · Raw Response</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    html,body {
+      height: 100%;
+      margin: 0;
+      background: #000; /* black background as requested */
+      color: #e6e6e6;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", "Courier New", monospace;
+      -webkit-font-smoothing: antialiased;
+    }
+    .container {
+      box-sizing: border-box;
+      padding: 18px;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      margin-bottom: 8px;
+      font-size: 14px;
+      color: #bfbfbf;
+      display:flex;
+      gap:12px;
+      align-items:center;
+    }
+    .status {
+      font-weight: 600;
+      color: #9ad1ff;
+    }
+    .ctype {
+      font-size: 12px;
+      color: #9ad1ff;
+      opacity: 0.9;
+    }
+    .pre-wrap {
+      flex: 1 1 auto;
+      overflow: auto;
+      background: #000;
+      border: 1px solid rgba(255,255,255,0.06);
+      padding: 12px;
+      border-radius: 6px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-size: 13px;
+      line-height: 1.35;
+      color: #f3f3f3;
+    }
+    .small {
+      font-size: 12px;
+      color: #9a9a9a;
+    }
+    a.loc {
+      color: #9ad1ff;
+      text-decoration: underline;
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="status">Upstream status: {{ status }}</div>
+      <div class="ctype">Content-Type: {{ ctype }}</div>
+      {% if upstream_location %}
+        <div class="small">Upstream location: <a class="loc" href="{{ upstream_location }}" target="_blank" rel="noreferrer">{{ upstream_location }}</a></div>
+      {% endif %}
+    </header>
+
+    <div class="pre-wrap" id="raw">
+<pre style="margin:0;">{{ raw | e }}</pre>
+    </div>
+
+    <div class="small" style="margin-top:8px;">
+      Note: API key is stored server-side and is not displayed.
+    </div>
+  </div>
+</body>
+</html>
