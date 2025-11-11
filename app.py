@@ -1,4 +1,4 @@
-from flask import Flask, request, Response, abort, render_template
+from flask import Flask, request, Response, render_template
 import requests
 import json
 import time
@@ -54,13 +54,14 @@ def use_second_api_for_target(target: str) -> bool:
 
 @app.route("/bypass", methods=["GET"])
 def bypass_proxy():
-    if 'url' not in request.args:
-        return abort(400, "Missing 'url' query parameter. Use /bypass?url=<TARGET>")
     target = request.args.get("url", "")
     start = time.time()
+    if not target:
+        elapsed = time.time() - start
+        err_obj = {"Status": "error", "message": "Missing url", "time": f"{elapsed:.2f}"}
+        return Response(json.dumps(err_obj, indent=2), mimetype="application/json", status=400)
 
     if use_second_api_for_target(target):
-        # SECOND API
         try:
             resp = requests.get(
                 SECOND_API_BASE,
@@ -72,7 +73,7 @@ def bypass_proxy():
         except requests.RequestException:
             elapsed = time.time() - start
             return Response(
-                json.dumps({"Status": "error", "message": "Custom error: second API failed.", "time": f"{elapsed:.2f}"}),
+                json.dumps({"Status": "error", "message": "Second API failed.", "time": f"{elapsed:.2f}"}),
                 indent=2, mimetype="application/json", status=502
             )
         except ValueError:
@@ -82,7 +83,7 @@ def bypass_proxy():
         elapsed = time.time() - start
         if not isinstance(data, dict):
             return Response(
-                json.dumps({"Status": "error", "message": "Custom error: invalid response from second API.", "time": f"{elapsed:.2f}"}),
+                json.dumps({"Status": "error", "message": "Invalid response from second API.", "time": f"{elapsed:.2f}"}),
                 indent=2, mimetype="application/json", status=502
             )
 
@@ -97,23 +98,21 @@ def bypass_proxy():
             }
             return Response(json.dumps(result_obj, indent=2), mimetype="application/json", status=resp.status_code)
         else:
-            # Second API error
             if not use_second_api_for_target(target):
                 message = "URL not supported by second API."
             else:
-                message = api_data.get("message") or data.get("message") or "Custom error: second API failed."
+                message = api_data.get("message") or data.get("message") or "Second API failed."
             error_obj = {"Status": "error", "message": message, "time": f"{elapsed:.2f}"}
             return Response(json.dumps(error_obj, indent=2), mimetype="application/json", status=resp.status_code)
 
     else:
-        # FIRST API
         try:
             resp = requests.get(API_BASE, params={"url": target, "apikey": API_KEY}, timeout=15)
             data = resp.json()
         except requests.RequestException:
             elapsed = time.time() - start
             return Response(
-                json.dumps({"Status": "error", "message": "Custom error: upstream API failed.", "time": f"{elapsed:.2f}"}),
+                json.dumps({"Status": "error", "message": "Upstream API failed.", "time": f"{elapsed:.2f}"}),
                 indent=2, mimetype="application/json", status=502
             )
         except ValueError:
@@ -123,19 +122,16 @@ def bypass_proxy():
         elapsed = time.time() - start
         if isinstance(data, dict) and "error" in data:
             err = data.get("error")
-            # Check if error is unsupported
             unsupported_msgs = ["unsupported", "not supported"]
             msg = ""
             if isinstance(err, dict):
                 msg = err.get("message") or err.get("msg") or ""
             if not msg:
                 msg = data.get("message") or str(err)
-
             if any(u.lower() in msg.lower() for u in unsupported_msgs):
-                message = msg  # keep API unsupported message
+                message = msg
             else:
-                message = "Custom error: upstream API failed."
-
+                message = "Upstream API failed."
             error_obj = {"Status": "error", "message": message, "time": f"{elapsed:.2f}"}
             return Response(json.dumps(error_obj, indent=2), mimetype="application/json", status=resp.status_code)
 
