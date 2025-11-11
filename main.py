@@ -1,5 +1,5 @@
 # app.py
-from flask import Flask, request, Response, abort
+from flask import Flask, request, Response, abort, redirect
 import requests
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 import logging
@@ -11,8 +11,7 @@ API_BASE = "http://ace-bypass.com/api/bypass"
 API_KEY = "FREE_S7MdXC0momgajOEx1_UKW7FQUvbmzvalu0gTwr-V6cI"
 # =================================================
 
-# Optional: silence the default werkzeug request logger so requests (including querystrings)
-# won't be printed to stdout. Keep disabled in production if you prefer logs.
+# Silence werkzeug request logging when not debugging (avoids printing full querystrings)
 if not app.debug:
     logging.getLogger("werkzeug").disabled = True
 
@@ -44,6 +43,15 @@ def filtered_response_headers(original_headers):
         out[k] = v
     return out
 
+@app.route("/", methods=["GET"])
+def root_redirect():
+    """
+    Redirect root to /bypass?url= so visiting the site auto-adds that path/query.
+    Example: https://example.com/  ->  https://example.com/bypass?url=
+    """
+    # Use a relative redirect to keep the same host/scheme.
+    return redirect("/bypass?url=", code=302)
+
 @app.route("/bypass", methods=["GET"])
 def bypass_proxy():
     """
@@ -72,7 +80,6 @@ def bypass_proxy():
     if 'Content-Type' in safe_headers:
         response.headers['Content-Type'] = safe_headers.pop('Content-Type')
     for hk, hv in safe_headers.items():
-        # avoid accidental overwrites
         if hk.lower() == 'content-type':
             continue
         response.headers[hk] = hv
