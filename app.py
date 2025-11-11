@@ -2,7 +2,6 @@ from flask import Flask, request, Response, abort, render_template
 import requests
 import json
 import time
-from urllib.parse import urlparse
 
 app = Flask(__name__)
 
@@ -63,8 +62,31 @@ def bypass_proxy():
             resp = requests.get(SECOND_API_BASE, params={"url": target}, headers={"x-api-key": SECOND_API_KEY}, timeout=15)
         except requests.RequestException:
             elapsed = time.time() - start
-            err_obj = {"Status": "error", "message": "Failed to contact upstream API.", "time": f"{elapsed:.2f}"}
+            err_obj = {"Status": "error", "message": "Failed to contact second API.", "time": f"{elapsed:.2f}"}
             return Response(json.dumps(err_obj, indent=2, ensure_ascii=False), mimetype="application/json", status=502)
+        try:
+            data = resp.json()
+        except ValueError:
+            elapsed = time.time() - start
+            return Response(resp.text, mimetype="text/plain", status=resp.status_code)
+        elapsed = time.time() - start
+        if isinstance(data, dict) and "error" in data:
+            err = data.get("error")
+            message = None
+            if isinstance(err, dict):
+                message = err.get("message") or err.get("msg")
+            if not message:
+                message = data.get("message")
+            if not message:
+                message = str(err)
+            error_obj = {"Status": "error", "message": str(message), "time": f"{elapsed:.2f}"}
+            return Response(json.dumps(error_obj, indent=2, ensure_ascii=False), mimetype="application/json", status=resp.status_code)
+        filtered = {}
+        if isinstance(data, dict) and "result" in data:
+            filtered["status"] = data.get("status", "success")
+            filtered["result"] = data["result"]
+            filtered["time"] = f"{elapsed:.2f}"
+        return Response(json.dumps(filtered, indent=2, ensure_ascii=False), mimetype="application/json", status=resp.status_code)
     else:
         try:
             resp = requests.get(API_BASE, params={"url": target, "apikey": API_KEY}, timeout=15)
@@ -72,29 +94,29 @@ def bypass_proxy():
             elapsed = time.time() - start
             err_obj = {"Status": "error", "message": "Failed to contact upstream API.", "time": f"{elapsed:.2f}"}
             return Response(json.dumps(err_obj, indent=2, ensure_ascii=False), mimetype="application/json", status=502)
-    try:
-        data = resp.json()
-    except ValueError:
+        try:
+            data = resp.json()
+        except ValueError:
+            elapsed = time.time() - start
+            return Response(resp.text, mimetype="text/plain", status=resp.status_code)
         elapsed = time.time() - start
-        return Response(resp.text, mimetype="text/plain", status=resp.status_code)
-    elapsed = time.time() - start
-    if isinstance(data, dict) and "error" in data:
-        err = data.get("error")
-        message = None
-        if isinstance(err, dict):
-            message = err.get("message") or err.get("msg")
-        if not message:
-            message = data.get("message")
-        if not message:
-            message = str(err)
-        error_obj = {"Status": "error", "message": str(message), "time": f"{elapsed:.2f}"}
-        return Response(json.dumps(error_obj, indent=2, ensure_ascii=False), mimetype="application/json", status=resp.status_code)
-    filtered = {}
-    if isinstance(data, dict) and "result" in data:
-        filtered["status"] = "success"
-        filtered["result"] = data["result"]
-        filtered["time"] = f"{elapsed:.2f}"
-    return Response(json.dumps(filtered, indent=2, ensure_ascii=False), mimetype="application/json", status=resp.status_code)
+        if isinstance(data, dict) and "error" in data:
+            err = data.get("error")
+            message = None
+            if isinstance(err, dict):
+                message = err.get("message") or err.get("msg")
+            if not message:
+                message = data.get("message")
+            if not message:
+                message = str(err)
+            error_obj = {"Status": "error", "message": str(message), "time": f"{elapsed:.2f}"}
+            return Response(json.dumps(error_obj, indent=2, ensure_ascii=False), mimetype="application/json", status=resp.status_code)
+        filtered = {}
+        if isinstance(data, dict) and "result" in data:
+            filtered["status"] = "success"
+            filtered["result"] = data["result"]
+            filtered["time"] = f"{elapsed:.2f}"
+        return Response(json.dumps(filtered, indent=2, ensure_ascii=False), mimetype="application/json", status=resp.status_code)
 
 @app.route("/supported", methods=["GET"])
 def supported_page():
