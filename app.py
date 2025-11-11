@@ -70,23 +70,22 @@ def bypass_proxy():
             elapsed = time.time() - start
             return Response(resp.text, mimetype="text/plain", status=resp.status_code)
         elapsed = time.time() - start
-        if isinstance(data, dict) and "error" in data:
-            err = data.get("error")
-            message = None
-            if isinstance(err, dict):
-                message = err.get("message") or err.get("msg")
-            if not message:
-                message = data.get("message")
-            if not message:
-                message = str(err)
-            error_obj = {"Status": "error", "message": str(message), "time": f"{elapsed:.2f}"}
-            return Response(json.dumps(error_obj, indent=2, ensure_ascii=False), mimetype="application/json", status=resp.status_code)
-        filtered = {}
-        if isinstance(data, dict) and "result" in data:
-            filtered["status"] = data.get("status", "success")
-            filtered["result"] = data["result"]
-            filtered["time"] = f"{elapsed:.2f}"
-        return Response(json.dumps(filtered, indent=2, ensure_ascii=False), mimetype="application/json", status=resp.status_code)
+        # Second API success
+        if isinstance(data, dict):
+            api_status = data.get("status", "").lower()
+            api_data = data.get("data", {})
+            if api_status == "success":
+                result_obj = {
+                    "status": api_status,
+                    "result": api_data.get("result", ""),
+                    "time": f"{elapsed:.2f}"
+                }
+                return Response(json.dumps(result_obj, indent=2, ensure_ascii=False), mimetype="application/json", status=resp.status_code)
+            else:
+                # Error case
+                message = api_data.get("message") or data.get("message") or "Unknown error"
+                error_obj = {"Status": "error", "message": str(message), "time": f"{elapsed:.2f}"}
+                return Response(json.dumps(error_obj, indent=2, ensure_ascii=False), mimetype="application/json", status=resp.status_code)
     else:
         try:
             resp = requests.get(API_BASE, params={"url": target, "apikey": API_KEY}, timeout=15)
